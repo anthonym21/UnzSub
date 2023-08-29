@@ -7,7 +7,6 @@
     <Nullable>disable</Nullable>
    <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
-    <RuntimeIdentifier>linux-x64</RuntimeIdentifier>
   <PublishReadyToRun>true</PublishReadyToRun>
   </PropertyGroup>
 

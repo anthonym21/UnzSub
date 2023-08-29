@@ -28,7 +28,7 @@ namespace UnzSub.App
                     new FileStream(fullOutputPath, overwrite ? FileMode.Create : FileMode.CreateNew, FileAccess.Write);
                 Console.Write($"{entry.Name}..");
 
-                await entry.Open().CopyToAsync(outputStream);
+                await entry.Open().CopyToAsync(outputStream, token);
                 File.SetLastWriteTime(fullOutputPath, entry.LastWriteTime.LocalDateTime);
                 File.SetCreationTime(fullOutputPath, entry.LastWriteTime.LocalDateTime);
 
