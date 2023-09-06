@@ -1,39 +1,69 @@
-﻿using System.IO.Compression;
+﻿using System;
+using System.IO;
+
+
+using SharpCompress.Common;
+using SharpCompress.IO;
+using SharpCompress.Readers;
+using SharpCompress.Readers.Zip;
+
+using SharpCompress.Writers;
+
+using ZipArchive = SharpCompress.Archives.Zip.ZipArchive;
 
 namespace UnzSub.App
 {
     public static class Util
     {
-        public static async Task UnzipFileAsync(string zipFile, string destinationPath, bool overwrite)
+        public static async Task UnzipFileAsync(string zipFile, string destinationPath, bool overwrite, CancellationToken token = default)
         {
-            using FileStream inputStream = new(zipFile, FileMode.Open, FileAccess.Read);
-            using ZipArchive archive = new(inputStream, ZipArchiveMode.Read, false);
-            Console.WriteLine($"> Opening {zipFile} to go into {destinationPath}");
-            CancellationTokenSource source = new();
-            CancellationToken token = source.Token;
-            await Parallel.ForEachAsync(archive.Entries,  async (entry, token) =>
+            //Use ForwardOnlyStream instead of FileStream.
+            await Task.Run(() =>
             {
-                string fullOutputPath = Path.Combine(destinationPath, entry.FullName);
-                if (!Directory.Exists(Path.GetDirectoryName(fullOutputPath)))
+                using var stream = new FileStream(zipFile, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 81920);
+                using var archive = ZipReader.Open(stream);
+                while (archive.MoveToNextEntry())
                 {
-                    string directoryPath = Path.GetDirectoryName(fullOutputPath);
-                    Directory.CreateDirectory(directoryPath);
+
+                    var entry = archive.Entry;
+                    if (entry.IsDirectory)
+                    {
+                        return;
+                    }
+
+                    Console.Write($"{entry.Key}..");
+                    var fullOutputPath = Path.Combine(destinationPath, entry.Key);
+                    if (!Directory.Exists(Path.GetDirectoryName(fullOutputPath)))
+                    {
+                        Directory.CreateDirectory(Path.GetDirectoryName(fullOutputPath)!);
+                    }
+                    archive.WriteEntryToDirectory(destinationPath, new ExtractionOptions()
+                    {
+                        ExtractFullPath = true,
+                        Overwrite = overwrite,
+                        PreserveFileTime = true
+                    });
                 }
-                if (entry.Length == 0)
-                {
-                    return;
-                }
 
-                using Stream outputStream =
-                    new FileStream(fullOutputPath, overwrite ? FileMode.Create : FileMode.CreateNew, FileAccess.Write);
-                Console.Write($"{entry.Name}..");
+                /*   var entry = archive.Entry;
+                   if (entry.IsDirectory)
+                       continue;
+                   Console.Write($"{entry.Key}..");
+                   var fullOutputPath = Path.Combine(destinationPath, entry.Key);
+                   if (!Directory.Exists(Path.GetDirectoryName(fullOutputPath)))
+                   {
+                       Directory.CreateDirectory(Path.GetDirectoryName(fullOutputPath)!);
+                   }
+                   archive.WriteEntryToDirectory(destinationPath, new ExtractionOptions()
+                   {
+                       ExtractFullPath = true,
+                       Overwrite = overwrite,
+                       PreserveFileTime = true
+                   });   */
+            }  
+            ,token);
 
-                await entry.Open().CopyToAsync(outputStream);
-                File.SetLastWriteTime(fullOutputPath, entry.LastWriteTime.LocalDateTime);
-                File.SetCreationTime(fullOutputPath, entry.LastWriteTime.LocalDateTime);
-
-            });
-            Console.WriteLine($"> Unpacked {zipFile} to {destinationPath}");
+            Console.WriteLine($"> Unzipped {zipFile} to {destinationPath}");
         }
     }
 }
