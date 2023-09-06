@@ -1,7 +1,4 @@
 ﻿using Microsoft.Extensions.Configuration;
-
-using System.IO.Compression;
-
 using UnzSub.App;
 
 // load appsettings.json
@@ -17,33 +14,19 @@ string subDirectoryPrefix = config["SubDirectoryPrefix"] ?? "Backup Files *";
 string zipFilePrefix = config["ZipFilePrefix"] ?? "Backup files *";
 
 // Get all subdirectories that match the pattern
-var directories = Directory.GetDirectories(baseDirectory, subDirectoryPrefix);
-var pops = new ParallelOptions { MaxDegreeOfParallelism = 4 };
-CancellationTokenSource source = new();
-CancellationToken token = source.Token;
-await Parallel.ForEachAsync(directories, pops, async (dir, token) =>
+var directories = Directory.EnumerateDirectories(baseDirectory, subDirectoryPrefix);
+CancellationToken token = new CancellationTokenSource().Token;
+// Use Parallel.ForEach for multithreading
+foreach(var dir in directories)
 {
     Console.WriteLine($"Processing {dir}...");
     // Create the Output directory if it doesn't exist
     string outputDir = Path.Combine(dir, outputDirectory);
-    Directory.CreateDirectory(outputDir);
+    if (!Directory.Exists(outputDir))
+        Directory.CreateDirectory(outputDir);
 
     // Get all zip files in the subdirectory
-    var zipFiles = Directory.GetFiles(dir, zipFilePrefix);
-    await Task.WhenAll(zipFiles.Select(async zipFile => await Util.UnzipFileAsync(zipFile, outputDir, overwrite)));
-});
-
-/*
-// Use Parallel.ForEach for multithreading
-await Task.Run(() => Parallel.ForEach(directories, dir =>
-{
-    // Create the Output directory if it doesn't exist
-    string outputDir = Path.Combine(dir, outputDirectory);
-    Directory.CreateDirectory(outputDir);
-
-    // Get all zip files in the subdirectory
-    var zipFiles = Directory.GetFiles(dir, zipFilePrefix);
-
+    var zipFiles = Directory.EnumerateFiles(dir, zipFilePrefix);
 
     // Unzip each file
     foreach (var zipFile in zipFiles)
@@ -51,9 +34,9 @@ await Task.Run(() => Parallel.ForEach(directories, dir =>
         string destinationPath = outputDir;
         try
         {
-            Console.WriteLine($"Unzipping {zipFile} to {destinationPath}...");  // Output the current file being unzipped
+            Console.WriteLine($"\r\n****************************Unzipping {zipFile} to {destinationPath}...**********************************\r\n");  // Output the current file being unzipped
 
-            ZipFile.ExtractToDirectory(zipFile, destinationPath, overwrite);
+            await Util.UnzipFileAsync(zipFile, destinationPath, overwrite, token);
         }
         catch (InvalidDataException ex)
         {
@@ -71,7 +54,6 @@ await Task.Run(() => Parallel.ForEach(directories, dir =>
         {
             // This will catch any other exceptions
             Console.WriteLine($"An unexpected error occurred while unzipping {zipFile}: {ex.Message}");
-           
         }
     }
-}));*/
+}
